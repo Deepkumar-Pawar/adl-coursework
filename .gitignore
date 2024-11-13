@@ -1,4 +1,5 @@
 data/
+logs/
 .virtual_documents/
 .ipynb_checkpoints/
 ed_playground.ipynb
