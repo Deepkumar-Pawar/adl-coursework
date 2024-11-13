@@ -554,7 +554,7 @@ class Trainer:
 
                 ## TASK 1: Compute the forward pass of the model, print the output shape
                 ##         and quit the program
-                logits = self.model.forward(batch)
+                logits = self.model.forward(batch).squeeze()
                 #print(logits.shape)
                                         
                 #import sys; sys.exit(1)
