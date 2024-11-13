@@ -260,7 +260,8 @@ def main(args):
     model = CNN(height=42, width=42, channels=3, class_count=2)
 
     ## TASK 8: Redefine the criterion to be softmax cross entropy
-    criterion = nn.CrossEntropyLoss()
+    #criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEwithLogitsLoss()
 
     ## TASK 11: Define the optimizer
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.sgd_momentum)
@@ -554,9 +555,9 @@ class Trainer:
                 ## TASK 1: Compute the forward pass of the model, print the output shape
                 ##         and quit the program
                 logits = self.model.forward(batch)
-                print(logits.shape)
+                #print(logits.shape)
                                         
-                import sys; sys.exit(1)
+                #import sys; sys.exit(1)
 
                 ## TASK 7: Rename `output` to `logits`, remove the output shape printing
                 ##         and get rid of the `import sys; sys.exit(1)`
@@ -566,7 +567,7 @@ class Trainer:
                 ## TASK 9: Compute the loss using self.criterion and
                 ##         store it in a variable called `loss`
 
-                loss = self.criterion(logits, labels)
+                loss = self.criterion(logits, labels.float())
 
                 ## TASK 10: Compute the backward pass
 
@@ -579,7 +580,7 @@ class Trainer:
                 self.optimizer.zero_grad()
 
                 with torch.no_grad():
-                    preds = logits.argmax(-1)
+                    preds = (logits > 0.5).float()
                     accuracy = compute_accuracy(labels, preds)
 
                 data_load_time = data_load_end_time - data_load_start_time
