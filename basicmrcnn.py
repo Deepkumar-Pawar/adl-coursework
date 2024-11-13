@@ -17,6 +17,7 @@ from torchvision import transforms
 import argparse
 from pathlib import Path
 
+
 torch.backends.cudnn.benchmark = True
 
 parser = argparse.ArgumentParser(
@@ -112,8 +113,8 @@ def main(args):
     model = CNN(height=42, width=42, channels=3, class_count=2)
 
     ## TASK 8: Redefine the criterion to be softmax cross entropy
-    criterion = nn.CrossEntropyLoss()
-
+    #criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss()
     ## TASK 11: Define the optimizer
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.sgd_momentum)
 
@@ -225,46 +226,7 @@ class CNN(nn.Module):
         # BatchNorm layer after third FC layer
         self.batchnorm6 = nn.BatchNorm1d(num_features=self.fc3.out_features)
 
-    #FORWARD FOR combining first 2 dimensions
-#     def forward(self, images: torch.Tensor) -> torch.Tensor:
-#         images = images.reshape(-1, 3, 42, 42)
-#         #images = images[:, 0, :, :, :]
-#         print(images.shape)
-#         x = F.relu(self.conv1(images))
-#         x = self.pool1(x)
-#         x = self.batchnorm1(x)
 
-#         x = F.relu(self.conv2(x))
-#         x = self.pool2(x)
-#         x = self.batchnorm2(x)
-        
-#         x = F.relu(self.conv3(x))
-#         x = self.pool3(x)
-#         x = self.batchnorm3(x)
-
-#         ## TASK 4: Flatten the output of the pooling layer so it is of shape
-#         ##         (batch_size, 4096)
-        
-#         x = torch.flatten(x, start_dim=1)
-        
-        
-#         ## TASK 5-2: Pass x through the first fully connected layer
-        
-#         x = F.relu(self.fc1(x))
-#         x = self.batchnorm4(x)
-        
-#         print("fc1 layer shape: ", x.shape)
-        
-#         ## TASK 6-2: Pass x through the last fully connected layer
-#         #IMPORTANT: concatenate fc layers before next steps
-
-#         x = self.fc2(x)
-#         x = self.batchnorm5(x)
-        
-#         x = self.fc3(x)
-#         x = self.batchnorm6(x)
-
-#         return x
     
     # FORWARD METHOD for running 3 parallel CNNs
     def forward(self, images: torch.Tensor) -> torch.Tensor:
@@ -337,11 +299,12 @@ class CNN(nn.Module):
         x3 = self.batchnorm4(x3)
         
         
-        print("fc1 layer shape: ", x3.shape)
+        #print("fc1 layer shape: ", x3.shape)
         
         ## TASK 6-2: Pass x through the last fully connected layer
         #IMPORTANT: concatenate fc layers before next steps
         xCat = torch.cat((x1, x2, x3), dim=1)
+        
         x = self.fc2(xCat)
         x = self.batchnorm5(x)
         
@@ -405,10 +368,12 @@ class Trainer:
 
                 ## TASK 1: Compute the forward pass of the model, print the output shape
                 ##         and quit the program
-                logits = self.model.forward(batch)
-                print(logits.shape)
+                logits = self.model.forward(batch).reshape(128)
+                print("logits: ", logits.shape)
+
+                print("labels: ", labels.shape)
                                         
-                import sys; sys.exit(1)
+                #import sys; sys.exit(1)
 
                 ## TASK 7: Rename `output` to `logits`, remove the output shape printing
                 ##         and get rid of the `import sys; sys.exit(1)`
@@ -418,11 +383,12 @@ class Trainer:
                 ## TASK 9: Compute the loss using self.criterion and
                 ##         store it in a variable called `loss`
 
-                loss = self.criterion(logits, labels)
+                loss = self.criterion(logits, labels.float())
 
                 ## TASK 10: Compute the backward pass
 
                 loss.backward()
+                print("backward computed")
 
                 ## TASK 12: Step the optimizer and then zero out the gradient buffers.
                 
