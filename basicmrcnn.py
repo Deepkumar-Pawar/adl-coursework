@@ -60,7 +60,7 @@ parser.add_argument(
 parser.add_argument(
     "-j",
     "--worker-count",
-    default=0, #cpu_count(), #note make this 0 if not using lab machine
+    default=cpu_count(), #note make this 0 if not using lab machine
     type=int,
     help="Number of worker processes used to load data.",
 )
@@ -189,7 +189,7 @@ class CNN(nn.Module):
             padding= (0,0) #(2, 2)
         )
 
-        self.initialise_layer(self.conv2)
+        self.initialise_layer(self.conv3)
         
         # Pool 3
         self.pool3 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
@@ -406,6 +406,7 @@ class Trainer:
                 ## TASK 1: Compute the forward pass of the model, print the output shape
                 ##         and quit the program
                 logits = self.model.forward(batch)
+                print(logits.shape)
                                         
                 import sys; sys.exit(1)
 
