@@ -17,7 +17,7 @@ def crop_to_region(coords: Tuple[int], img: Tensor, crop_size: int=42) -> Tensor
 
     Returns:
         Tensor: The image cropped with central coordinates at (y, x) of size 
-        (3 x size x size)
+        (3 x size x size) # is size here referring to 42?
     """
     _, H, W = img.shape
     y, x = coords
@@ -115,3 +115,14 @@ class MIT(data.Dataset):
             crops.
         """
         return len(self.dataset) * self.num_crops
+
+
+trainingdata = MIT("train_data.pth.tar")
+
+
+# each element in self.dataset dictionary which has three components so just get X and y component (so X component 3x3x42x42 and y is label) -> inputs to the CNN
+
+
+print(trainingdata.dataset[0]['y'])
+print(trainingdata.dataset[0]['X'])
+

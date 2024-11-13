@@ -16,6 +16,7 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader
 
 import argparse
 from pathlib import Path
@@ -145,6 +146,17 @@ testingdata = MIT("data/test_data.pth.tar")
 print(trainingdata.dataset[0]['y'])
 print(trainingdata.dataset[0]['X'])
 
+class NormalisedDataset(Dataset):
+    def __init__(self, X, y):
+        self.X = X
+        self.y = y
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -213,23 +225,39 @@ else:
 
 def main(args):
     
+    
+    # Stack X tensors and extract y values
+    X_train = torch.stack([sample['X'] for sample in trainingdata.dataset])
+    y_train = torch.tensor([sample['y'] for sample in trainingdata.dataset])
 
-    X_train = torch.stack([sample['X'] for sample in trainingdata.dataset]) # stack X tensors to get tensor of shape num_samples, 3, 3, 42, 42 
+    # Calculate mean and std for normalization
+    mean_train = X_train.view(X_train.size(0), X_train.size(1), -1).mean(dim=(0, 2))
+    std_train = X_train.view(X_train.size(0), X_train.size(1), -1).std(dim=(0, 2))
 
-    mean_train = X_train.view(X_train.size(0), X_train.size(1), -1).mean(dim=(0,2)) # mean and std across all samples for each channel reshaped to samples, channels=3, height*width 
-    std_train = X_train.view(X_train.size(0), X_train.size(1), -1).std(dim=(0,2))
-
+    # Normalize X_train
     normalised_X_train = (X_train - mean_train[None, :, None, None]) / std_train[None, :, None, None]
 
-    print(normalised_X_train.shape)
+    # Create the custom dataset
+    normalised_trainingdata = NormalisedDataset(normalised_X_train, y_train)
 
-    normalised_trainingdata = []
-    for i in range(len(trainingdata.dataset)):
-        normalised_sample = {'X':normalised_X_train[i], 'y':trainingdata.dataset[i]['y']}
-        normalised_trainingdata.append(normalised_sample)
+    # Pass the dataset into DataLoader
+    train_loader = DataLoader(normalised_trainingdata, batch_size=128, shuffle=True)
+
+#     X_train = torch.stack([sample['X'] for sample in trainingdata.dataset]) # stack X tensors to get tensor of shape num_samples, 3, 3, 42, 42 
+
+#     mean_train = X_train.view(X_train.size(0), X_train.size(1), -1).mean(dim=(0,2)) # mean and std across all samples for each channel reshaped to samples, channels=3, height*width 
+#     std_train = X_train.view(X_train.size(0), X_train.size(1), -1).std(dim=(0,2))
+
+#     normalised_X_train = (X_train - mean_train[None, :, None, None]) / std_train[None, :, None, None]
+
+#     print(normalised_X_train.shape)
+
+#     normalised_trainingdata = []
+#     for i in range(len(trainingdata.dataset)):
+#         normalised_sample = {'X':normalised_X_train[i], 'y':trainingdata.dataset[i]['y']}
+#         normalised_trainingdata.append(normalised_sample)
     
-    normalised_trainingdata[0]['y']
-    normalised_trainingdata[0]['X']
+    
     print(args)
     
     args.dataset_root.mkdir(parents=True, exist_ok=True)
