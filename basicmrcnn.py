@@ -261,7 +261,7 @@ def main(args):
 
     ## TASK 8: Redefine the criterion to be softmax cross entropy
     #criterion = nn.CrossEntropyLoss()
-    criterion = nn.BCEwithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss()
 
     ## TASK 11: Define the optimizer
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.sgd_momentum)
