@@ -143,19 +143,22 @@ class MIT(data.Dataset):
             crops.
         """
         return len(self.dataset) * self.num_crops
-
+        
+print("Loading data..")
 
 trainingdata = MIT("data/train_data.pth.tar")
 valdata = MIT("data/val_data.pth.tar")
 testingdata = MIT("data/test_data.pth.tar")
 
-###################################### DATA AUGMENTATION
+print("All data loaded.")
 
+###################################### DATA AUGMENTATION
+print("Augmenting data...")
 training_data_augmented = trainingdata.dataset * 2
 for i in range(len(trainingdata.dataset), len(training_data_augmented)):
     training_data_augmented[i]['X'] = torch.flip(training_data_augmented[i]['X'], dims=[3])
     
-print('done')
+#print('done')
 
 red_channel = ([sample['X'][:, 0, :, :] for sample in training_data_augmented])
 blue_channel = ([sample['X'][:, 1, :, :] for sample in training_data_augmented])
@@ -177,7 +180,7 @@ red_std = channel_std(red_channel)
 blue_std = channel_std(blue_channel)
 green_std = channel_std(green_channel)
 
-print(red_mean, blue_mean, green_mean, red_std, blue_std, green_std)
+#print(red_mean, blue_mean, green_mean, red_std, blue_std, green_std)
 
 for i in range(0, len(normalised_training_data)): # goes through the current list
     training_data_X = normalised_training_data[i]['X'] # gets the 3x3x42x42 X
@@ -190,7 +193,7 @@ for i in range(0, len(normalised_training_data)): # goes through the current lis
 
 final_data = trainingdata
 final_data.dataset = normalised_training_data
-
+print("Augmented data.")
 ###################################### FORMAT FILES
 # this code generates the ground truth dictionary for inference datasets indexed by file name (formatted so they end with _fixMap.jpg)
 # ensure the predictions dictionary matches this format for file name
@@ -215,9 +218,10 @@ def get_ground_truth_dict(dataset: Dataset):
     
     return ground_truth_dict
 
+print("Loading ground truth dictionaries...")
 val_ground_truth_dict = get_ground_truth_dict(valdata.dataset)
 test_ground_truth_dict = get_ground_truth_dict(testingdata.dataset)
-
+print("Ground truth dictionaries loaded.")
 
 ###################################### DEFINE AUC
 from scipy.integrate import simpson
@@ -476,7 +480,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--val-frequency",
-    default=5,
+    default=1,
     type=int,
     help="How frequently to test the model on the validation set in number of epochs",
 )
@@ -504,6 +508,7 @@ parser.add_argument("--data-aug-hflip", action="store_true")
 parser.add_argument("--dropout", default=0.5, type=float)
 parser.add_argument("--max_norm", default=0.1, type=float)
 
+parser.add_argument("--include-cbam", default=False, type=bool)
 
 class ImageShape(NamedTuple):
     height: int
@@ -518,75 +523,75 @@ else:
 
 def main(args):
 
-    for i in range(5):
-
-        train_loader = torch.utils.data.DataLoader(
-            final_data,
-            shuffle=True,
-            batch_size=args.batch_size,
-            pin_memory=True,
-            num_workers=args.worker_count,
-        )
-        
-        print(args)
-        
-        args.dataset_root.mkdir(parents=True, exist_ok=True)
-        
-        test_dataset = testingdata.dataset
-        
-        
-        test_loader = torch.utils.data.DataLoader(
-            test_dataset,
-            shuffle=False,
-            batch_size=args.batch_size,
-            num_workers=args.worker_count,
-            pin_memory=True,
-        )
-
+    train_loader = torch.utils.data.DataLoader(
+        final_data,
+        shuffle=True,
+        batch_size=args.batch_size,
+        pin_memory=True,
+        num_workers=args.worker_count,
+    )
+    
+    print(args)
+    
+    args.dataset_root.mkdir(parents=True, exist_ok=True)
+    
+    test_dataset = testingdata.dataset
+    
+    
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset,
+        shuffle=False,
+        batch_size=args.batch_size,
+        num_workers=args.worker_count,
+        pin_memory=True,
+    )
+    if args.include_cbam:
+        model = CNNCBAM(height=42, width=42, channels=3, class_count=2, dropout=args.dropout)
+    else:
         model = CNN(height=42, width=42, channels=3, class_count=2, dropout=args.dropout)
 
-        # for torchviz visualisation of architecture
-        # dummy_input = torch.randn(1, 3, 3, 42, 42)
+    # for torchviz visualisation of architecture
+    # dummy_input = torch.randn(1, 3, 3, 42, 42)
 
-        # output = model(dummy_input)
+    # output = model(dummy_input)
 
-        # graph = make_dot(output, params=dict(model.named_parameters()))
+    # graph = make_dot(output, params=dict(model.named_parameters()))
 
-        # # Save or render the graph
-        # graph.render("cnn_graph_merged", format="png")  # Save as PNG
+    # # Save or render the graph
+    # graph.render("cnn_graph_merged", format="png")  # Save as PNG
 
-        # define criterion as Binary Cross Entropy Loss - it does sigmoid as built in
-        criterion = nn.BCEWithLogitsLoss()
+    # define criterion as Binary Cross Entropy Loss - it does sigmoid as built in
+    criterion = nn.BCEWithLogitsLoss()
 
-        # define optimizer
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.sgd_momentum, weight_decay=2e-4)
+    # define optimizer
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.sgd_momentum, weight_decay=2e-4)
 
-        log_dir = get_summary_writer_log_dir(args)
-        print(f"Writing logs to {log_dir}")
-        summary_writer = SummaryWriter(
-                str(log_dir),
-                flush_secs=5
-        )
-        trainer = Trainer(
-            model, train_loader, test_loader, criterion, optimizer, summary_writer, DEVICE
-        )
+    log_dir = get_summary_writer_log_dir(args)
+    print(f"Writing logs to {log_dir}")
+    summary_writer = SummaryWriter(
+            str(log_dir),
+            flush_secs=5
+    )
+    trainer = Trainer(
+        model, train_loader, test_loader, criterion, optimizer, summary_writer, DEVICE
+    )
 
-        print("About to train...")
-        trainer.train(
-            args.epochs,
-            args.val_frequency,
-            print_frequency=args.print_frequency,
-            log_frequency=args.log_frequency,
-        )
-        print("Finished training.")
-        summary_writer.close()
+    print("About to train...")
+    trainer.train(
+        args.epochs,
+        args.val_frequency,
+        print_frequency=args.print_frequency,
+        log_frequency=args.log_frequency,
+    )
+    print("Finished training.")
+    summary_writer.close()
 
-        print("\nTESTING MODEL")
-        test_auc, test_s_auc = test_model(model, testingdata, test_ground_truth_dict, DEVICE)
-        print("AUC:", test_auc, "on test dataset\n")
-        print("Shuffled AUC:", test_s_auc, "on test dataset\n")
-        # save model locally in notebook for manual evaluation
-        checkpoint_base_model(model, float(test_auc), True)
+    print("\nTESTING MODEL")
+    test_auc, test_s_auc = test_model(model, testingdata, test_ground_truth_dict, DEVICE)
+    print("AUC:", test_auc, "on test dataset\n")
+    print("Shuffled AUC:", test_s_auc, "on test dataset\n")
+    # save model locally in notebook for manual evaluation
+    checkpoint_base_model(model, float(test_auc), True)
 
 class CNN(nn.Module):
     def __init__(self, height: int, width: int, channels: int, class_count: int, dropout:float):
@@ -734,6 +739,234 @@ class CNN(nn.Module):
         if hasattr(layer, "weight"):
             nn.init.kaiming_normal_(layer.weight)
 
+############################### DEFINE CBAM MODULES AND CNN INTEGRATED WITH CBAM
+
+# code for CBAM parts inspired (taken from and modified accordingly) by code at https://github.com/w6688j/CBAM/blob/master/model/resnet_cbam.py
+class ChannelAttention(nn.Module):
+    def __init__(self, in_planes, ratio=16):
+        super(ChannelAttention, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+
+        # self.fc1   = nn.Conv2d(in_planes, in_planes // ratio, 1, bias=False)
+        self.fc1 = nn.Linear(in_planes, in_planes // ratio, bias=False)
+        # self.fc2 = nn.Conv2d(in_planes // ratio, in_planes, 1, bias=False)
+        self.fc2 = nn.Linear(in_planes // ratio, in_planes, bias=False)
+
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+
+        # print("shapeee", x.shape)
+        # import sys ; sys.exit(0)
+
+        avg_out = self.avg_pool(x).squeeze().squeeze()
+        avg_out = self.fc1(avg_out)
+        avg_out = F.relu(avg_out)
+        avg_out = self.fc2(avg_out)
+
+        max_out = self.max_pool(x).squeeze().squeeze()
+        max_out = self.fc1(max_out)
+        max_out = F.relu(max_out)
+        max_out = self.fc2(max_out)
+
+        # avg_out = self.fc2(self.relu1(self.fc1(self.avg_pool(x))))
+        # max_out = self.fc2(self.relu1(self.fc1(self.max_pool(x))))
+
+        out = (avg_out + max_out).unsqueeze(2).unsqueeze(3)
+        return self.sigmoid(out)
+
+class SpatialAttention(nn.Module):
+    def __init__(self, kernel_size=7):
+        super().__init__()
+
+        assert kernel_size in (3, 7), 'kernel size must be 3 or 7'
+        padding = 3 if kernel_size == 7 else 1
+
+        self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=padding, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        x = torch.cat([avg_out, max_out], dim=1)
+        x = self.conv1(x)
+        return self.sigmoid(x)
+
+class CNNCBAM(nn.Module):
+    def __init__(self, height: int, width: int, channels: int, class_count: int, dropout:float):
+        super().__init__()
+        self.input_shape = ImageShape(height=height, width=width, channels=channels)
+        self.class_count = class_count
+
+        self.dropout = nn.Dropout(p=dropout)
+        self.dropout2d = nn.Dropout2d(p=dropout)
+
+        # Define 1st Conv, Pool, and BatchNorm
+    
+        # Conv 1
+        self.conv1 = nn.Conv2d(
+            in_channels=self.input_shape.channels,
+            out_channels=96,
+            kernel_size=(7, 7),
+            padding= (0,0), #(2, 2),
+        )
+        self.initialise_layer(self.conv1)
+        
+        # Pool 1
+        self.pool1 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+
+        # BatchNorm 1
+        self.batchnorm1 = nn.BatchNorm2d(self.conv1.out_channels)
+
+        # attention 1
+        self.ca1 = ChannelAttention(96)
+        self.sa1 = SpatialAttention()
+
+        # Define 2nd Conv, Pool, and BatchNorm
+        
+        # Conv 2
+        self.conv2 = nn.Conv2d(
+            in_channels=96,
+            out_channels=160,
+            kernel_size=(3, 3),
+            padding= (0,0) #(2, 2)
+        )
+
+        self.initialise_layer(self.conv2)
+        
+        # Pool 2
+        self.pool2 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+
+        # BatchNorm 2
+        self.batchnorm2 = nn.BatchNorm2d(num_features=self.conv2.out_channels)
+
+        # attention 2
+        self.ca2 = ChannelAttention(160)
+        self.sa2 = SpatialAttention()
+        
+        # Define 3rd Conv, Pool, and BatchNorm
+        
+        # Conv 3
+        self.conv3 = nn.Conv2d(
+            in_channels=160,
+            out_channels=288,
+            kernel_size=(3, 3),
+            padding= (0,0) #(2, 2)
+        )
+
+        self.initialise_layer(self.conv3)
+        
+        # Pool 3
+        self.pool3 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+
+        # BatchNorm 3
+        self.batchnorm3 = nn.BatchNorm2d(num_features=self.conv3.out_channels)
+
+        # attention 3
+        self.ca3 = ChannelAttention(288)
+        self.sa3 = SpatialAttention()
+
+
+        # Define FC 1
+
+        self.fc1 = nn.Linear(2592, 512)
+        self.initialise_layer(self.fc1)
+
+        # BatchNorm layer after first FC layer
+        # import pdb; pdb.set_trace()
+        self.batchnorm4 = nn.BatchNorm1d(num_features=self.fc1.out_features)
+
+        
+        # Define FC 2
+
+        # self.fc2 = nn.Linear(1536, 512)
+        self.fc2 = nn.Linear(1536, 512)
+
+        self.initialise_layer(self.fc2)
+
+        # BatchNorm layer after second FC layer
+
+        self.batchnorm5 = nn.BatchNorm1d(num_features=self.fc2.out_features)
+        
+        # Define FC 3
+
+        self.fc3 = nn.Linear(512, 1)
+        self.initialise_layer(self.fc3)
+
+        # BatchNorm layer after third FC layer
+        self.batchnorm6 = nn.BatchNorm1d(num_features=self.fc3.out_features)
+    
+    # FORWARD METHOD
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        #print("lol")
+        batch_size = images.shape[0]
+
+        images = images.reshape(-1, 3, 42, 42)
+        
+        x = F.relu(self.conv1(images))
+        x = self.pool1(x)
+        x = self.batchnorm1(x)
+
+        x = self.ca1(x) * x
+        x = self.sa1(x) * x
+
+        x = F.relu(self.conv2(x))
+        x = self.pool2(x)
+        x = self.batchnorm2(x)
+
+
+        x = self.ca2(x) * x
+        x = self.sa2(x) * x
+
+        
+        x = F.relu(self.conv3(x))
+        x = self.pool3(x)
+        x = self.dropout2d(x)
+        x = self.batchnorm3(x)
+
+        # x = x.reshape(-1, 3, 42, 42)
+
+        # print(x.shape)
+        # print(x_ca.shape)
+
+        # import sys ; sys.exit(0)
+
+        x = self.ca3(x) * x
+        x = self.sa3(x) * x
+
+
+        # Flatten the output of the pooling layer so it is of shape (batch_size, 4096)
+        x = torch.flatten(x, start_dim=1)
+
+        # print(x.shape)
+        
+        # Pass x through the first fully connected layer
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.batchnorm4(x)
+
+
+        x = x.reshape(batch_size, -1)
+
+
+        # x = self.fc2(xCat)
+        x = F.relu(self.fc2(x))
+        x = self.dropout(x)
+
+        x = self.batchnorm5(x)
+        
+        x = self.fc3(x)
+        #x = self.batchnorm6(x)
+
+        return x
+
+    @staticmethod
+    def initialise_layer(layer):
+        if hasattr(layer, "bias"):
+            nn.init.zeros_(layer.bias)
+        if hasattr(layer, "weight"):
+            nn.init.kaiming_normal_(layer.weight)
 
 class Trainer:
     def __init__(
@@ -989,7 +1222,3 @@ if __name__ == "__main__":
     main(args)
 
 
-######################################
-######################################
-######################################
-######################################
